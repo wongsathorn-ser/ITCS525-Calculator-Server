@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from asteval import Interpreter
 
 from calculator import expand_percent
+from models import Expression, CalculatorLog
 
 HISTORY_MAX = 1000
 # HISTORY (in-memory for now)
@@ -26,9 +27,9 @@ aeval = Interpreter(minimal=True, usersyms={"pi": math.pi, "e": math.e})
 history_list = []
 
 @app.post("/calculate")
-def calculate(expr: str):
+def calculate(expr: Expression):
     try:
-        code = expand_percent(expr)
+        code = Expression.expand_percent(expr.expr)
         result = aeval(code)
         if aeval.error:
             msg = "; ".join(str(e.get_error()) for e in aeval.error)
@@ -37,7 +38,7 @@ def calculate(expr: str):
         # TODO: Add history
         
         # add to result history
-        history_result = {"timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f") , "expr": expr , "result": result }
+        history_result = {"timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f") , "expr": expr.expr , "result": result }
         history_list.append(history_result)
         
         return {"ok": True, "expr": expr, "result": result, "error": ""}
@@ -46,15 +47,16 @@ def calculate(expr: str):
 
 # TODO GET /hisory
 @app.get("/history")
-def get_history(limit: int = None):
+def get_history(limit: int = None) -> list[CalculatorLog]:
     try:
         newest_first = history_list[::-1]               
+        result_history_list = []
 
         if limit is None or limit <= 0:                 
-            return newest_first
-
-        result_history_list = []                        
-
+            for i in newest_first:
+                result_history_list.append(i)
+            return result_history_list
+        
         count_added = 0                             
         for i in newest_first:                         
             if count_added >= limit:                  
